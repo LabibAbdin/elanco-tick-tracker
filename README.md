@@ -1,21 +1,32 @@
 # TickWatch UK — Tick Sightings Backend
 
-**Elanco Placement Programme · Technical Task (Backend)** — by **Labib Abdin**
+**Elanco Placement Programme 2026 · Technical Task (Backend)**<br>
+**Author: Labib Abdin**
 
-A production-minded MVP backend that consumes the Elanco Tick Sightings API, turns it into a clean,
-queryable dataset, and serves search, reporting and statistical insights over a documented REST API.
+### In plain words
+
+This is the backend for a UK tick-tracking web app. It:
+
+1. **downloads** every tick sighting from the Elanco API, and checks for updates every hour;
+2. **cleans** the data: removes duplicates, fixes messy city and species names, and sets aside
+   records that can't be used, together with the reason;
+3. **stores** it in a database and adds the region and map position of every city;
+4. **serves** a REST API to search sightings by **time range and location**, report **sightings per
+   region** and **trends by week or month**, and give simple, explainable **predictions and risk scores**;
+5. **keeps working when the Elanco API is slow or down**, by retrying carefully and serving the last
+   good copy of the data.
 
 ![Console](docs/screenshots/console.png)
 
-> The screenshot is the built-in **console** at `/` — a single static page whose every panel is a
-> call to the REST API. It exists to make the backend easy to demo; the backend is the product.
+> The screenshot is a small built-in page at `/` that makes the backend easy to demo. Every panel on it
+> is a call to the REST API. The backend is the product; the page is just a window into it.
 
 ---
 
 ## Contents
 
 1. [Quick start](#1-quick-start)
-2. [What it does](#2-what-it-does)
+2. [The brief, point by point](#2-the-brief-point-by-point)
 3. [Architecture](#3-architecture)
 4. [Data handling strategy](#4-data-handling-strategy)
 5. [Search & filtering](#5-search--filtering)
@@ -25,7 +36,7 @@ queryable dataset, and serves search, reporting and statistical insights over a 
 9. [Testing & quality](#9-testing--quality)
 10. [Technology choices](#10-technology-choices)
 11. [Project structure](#11-project-structure)
-12. [What I'd do with more time](#12-what-id-do-with-more-time)
+12. [What I could have done better with more time](#12-what-i-could-have-done-better-with-more-time)
 
 Deeper write-up: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (decisions, trade-offs, failure modes).
 
@@ -38,7 +49,7 @@ Requires **Python 3.11+** (or Docker). No database server, no API keys.
 **macOS / Linux**
 
 ```bash
-git clone <this repo> && cd elanco-tick-tracker
+git clone https://github.com/LabibAbdin/elanco-tick-tracker.git && cd elanco-tick-tracker
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 uvicorn app.main:app --reload
@@ -47,7 +58,7 @@ uvicorn app.main:app --reload
 **Windows (PowerShell)**
 
 ```powershell
-git clone <this repo>; cd elanco-tick-tracker
+git clone https://github.com/LabibAbdin/elanco-tick-tracker.git; cd elanco-tick-tracker
 py -3 -m venv .venv; .venv\Scripts\Activate.ps1      # if blocked: Set-ExecutionPolicy -Scope Process Bypass
 pip install -r requirements-dev.txt
 uvicorn app.main:app --reload
@@ -89,16 +100,16 @@ All configuration is via environment variables or a `.env` file — see [`.env.e
 
 ---
 
-## 2. What it does
+## 2. The brief, point by point
 
-| Requirement | Delivered |
+| What the brief asks | What I delivered |
 |---|---|
 | **Data handling** — consume the API; large datasets, duplicates, incomplete data | Streaming, batched, idempotent ingestion with validation, normalisation, near-duplicate detection, quarantine of bad records and a full audit log ([§4](#4-data-handling-strategy)) |
 | **Search & filter** by time range and location | Time range (dates, months or years), city / region / nation, **radius around a point**, species (common or Latin), free text, pagination, sorting, CSV/NDJSON export ([§5](#5-search--filtering)) |
 | **Reporting** — sightings per region, weekly/monthly trends | Per city/region/nation (+GeoJSON), zero-filled trends by day/week/month/quarter/year with a proper trend test, seasonality, heatmaps, summary ([§6](#6-reporting-endpoints)) |
 | **AI/ML insights** (extension) | Poisson GLM diagnostics (trend, seasonality, hotspots), forecasts with prediction intervals **and a backtest**, FDR-controlled anomaly detection, an explainable 0–100 activity score, a plain-English briefing ([§7](#7-aiml-insights-extension)) |
 | **Error handling** — API failures and data inconsistencies | Timeouts, jittered retries, `Retry-After`, circuit breaker, per-city fallback, last-known-good data, one consistent error envelope, readiness probe ([§8](#8-error-handling--resilience)) |
-| Docs & thought process | This README, [ARCHITECTURE.md](docs/ARCHITECTURE.md), OpenAPI docs at `/docs` |
+| Docs & thought process (optional): architecture decisions, how data is consumed and presented (with screenshots), what I could have done better | This README, [ARCHITECTURE.md](docs/ARCHITECTURE.md) (decision records), screenshots below, OpenAPI docs at `/docs`, [§12](#12-what-i-could-have-done-better-with-more-time) |
 
 ### What I found when I probed the upstream API
 
@@ -118,6 +129,9 @@ Before designing anything I explored `https://dev-task.elancoapps.com/data` (Ope
 ---
 
 ## 3. Architecture
+
+**In short:** data flows one way: Elanco API → client → cleaning pipeline → database → REST API.
+Users are answered from the database, never from Elanco directly, so the API stays fast even when Elanco is down.
 
 ```mermaid
 flowchart LR
@@ -147,6 +161,10 @@ flowchart LR
 ---
 
 ## 4. Data handling strategy
+
+**In short:** read the feed as a stream, in batches of 500, so memory stays small however big the data gets.
+Check and clean every record, and save it so that running the sync twice never creates duplicates.
+Keep a log of what happened in every run.
 
 ### Consuming the API
 
@@ -197,7 +215,9 @@ in the audit log, repairs and rejections listed — and every chart still served
 
 ## 5. Search & filtering
 
-`GET /api/v1/sightings` — every filter also works on every reporting and insights endpoint.
+**In short:** one endpoint, `GET /api/v1/sightings`, filters by **time range** (`start`, `end`) and by **location**
+(city, region, nation, or distance from a point), plus species and free text. Every filter also works on every
+reporting and insights endpoint.
 
 | Parameter | Example | Notes |
 |---|---|---|
@@ -228,6 +248,16 @@ Invalid input never produces an empty result silently — it produces a helpful 
 
 ## 6. Reporting endpoints
 
+**In short:** sightings **per region** (and per city or nation), **trends by week or month** with empty weeks shown
+as 0, seasonality and a summary. Each one comes with a simple statistical test, so you can tell a real difference
+from chance.
+
+```bash
+curl "localhost:8000/api/v1/stats/by-location?group_by=region"      # sightings per region
+curl "localhost:8000/api/v1/stats/trends?interval=week&start=2024"   # weekly trend
+curl "localhost:8000/api/v1/stats/trends?interval=month"             # monthly trend
+```
+
 | Endpoint | Returns |
 |---|---|
 | `GET /api/v1/stats/summary` | Totals, span, top city/species, by nation, last-12-months vs previous, last sync |
@@ -246,6 +276,11 @@ returns `304 Not Modified` until the data changes.
 ---
 
 ## 7. AI/ML insights (extension)
+
+**In short:** one simple, explainable model of monthly sightings per city. It checks for a trend, a seasonal
+pattern and hotspot cities. It forecasts the next months with a likely range, flags unusual months, and gives
+each city a 0–100 activity score with a sentence explaining why. On Elanco's data it honestly reports that
+there is no trend and no seasonality, instead of inventing one.
 
 Rather than a black box, one interpretable model underpins everything — a **Poisson GLM** of monthly sighting
 counts per city (the textbook model for event counts):
@@ -279,6 +314,10 @@ while raising essentially no false alarms (`tests/test_insights.py`).
 ---
 
 ## 8. Error handling & resilience
+
+**In short:** when the Elanco API fails, the client waits and retries a few times. If it keeps failing, it stops
+calling for a minute (a circuit breaker), then tries smaller per-city requests. If those fail too, it keeps
+serving the last good data. Bad user input always gets the same clear error format, with suggestions.
 
 **Talking to the upstream** ([`app/ingestion/client.py`](app/ingestion/client.py))
 
@@ -367,7 +406,7 @@ docs/                     ARCHITECTURE.md, screenshots
 
 ---
 
-## 12. What I'd do with more time
+## 12. What I could have done better with more time
 
 * **Postgres + PostGIS** for true geo queries and concurrent writers; materialised views for the heaviest aggregates.
 * **Move ingestion out of the web process** (a worker + queue), with distributed locking, so scaling the API
