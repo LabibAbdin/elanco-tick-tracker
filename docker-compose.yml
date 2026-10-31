@@ -1,0 +1,62 @@
+services:
+  # The API against the real Elanco endpoint.
+  api:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      LOG_JSON: "true"
+      SYNC_INTERVAL_MINUTES: "60"
+    volumes:
+      - tick-data:/srv/var
+    restart: unless-stopped
+
+  # --- Resilience demo: `docker compose --profile chaos up` ------------------
+  # A misbehaving stand-in for the Elanco API (failures, 429s, truncation, dirty data)...
+  chaos-upstream:
+    profiles: ["chaos"]
+    build: .
+    command: ["python", "-m", "tools.chaos_upstream", "--host", "0.0.0.0", "--port", "9000", "--preset", "chaos"]
+    ports: ["9000:9000"]
+
+  # ...and a second API instance that ingests from it (http://localhost:8001).
+  api-chaos:
+    profiles: ["chaos"]
+    build: .
+    ports: ["8001:8000"]
+    environment:
+      UPSTREAM_BASE_URL: "http://chaos-upstream:9000/data"
+      SYNC_INTERVAL_MINUTES: "2"
+      HTTP_READ_TIMEOUT_S: "5"
+      LOG_JSON: "false"
+    volumes:
+      - tick-data-chaos:/srv/var
+    depends_on: [chaos-upstream]
+
+  # --- PostgreSQL instead of SQLite: `docker compose --profile postgres up` -------
+  db:
+    profiles: ["postgres"]
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: ticks
+      POSTGRES_DB: ticks
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      retries: 10
+
+  api-pg:
+    profiles: ["postgres"]
+    build: .
+    ports: ["8002:8000"]
+    environment:
+      DATABASE_URL: "postgresql+psycopg://postgres:ticks@db:5432/ticks"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  tick-data:
+  tick-data-chaos:
+  pg-data:

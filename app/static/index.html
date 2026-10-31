@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TickWatch UK · API console</title>
+<link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f6f3; --panel: #ffffff; --ink: #18211b; --muted: #5f6b63; --line: #e2e7e1;
+    --accent: #2f6b4f; --accent-soft: #e3efe8; --warn: #b7791f; --bad: #b42318; --good: #2f6b4f;
+    --low: #4f8a6b; --on-accent: #ffffff; --moderate: #c9a227; --high: #d9732b; --vhigh: #b42318;
+    --shadow: 0 1px 2px rgba(16,24,20,.06), 0 4px 16px rgba(16,24,20,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1411; --panel: #171e1a; --ink: #e8efe9; --muted: #98a59c; --line: #26302a;
+      --accent: #7cc4a0; --accent-soft: #1f3128; --shadow: none; --on-accent: #0f1411;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 Inter, system-ui, sans-serif; }
+  header { padding: 20px 24px 8px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; }
+  .brand { display: flex; gap: 12px; align-items: center; }
+  .logo { width: 36px; height: 36px; border-radius: 10px; background: var(--accent); display: grid; place-items: center; color: var(--on-accent); font-weight: 700; }
+  h1 { font-size: 18px; margin: 0; letter-spacing: -.01em; }
+  .sub { color: var(--muted); font-size: 12.5px; }
+  .pill { display: inline-flex; gap: 8px; align-items: center; padding: 6px 12px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font-size: 12.5px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.ok { background: var(--good); } .dot.degraded { background: var(--warn); } .dot.unavailable { background: var(--bad); }
+  .filters { margin: 8px 24px 16px; padding: 12px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-wrap: wrap; gap: 12px; align-items: end; box-shadow: var(--shadow); }
+  label { display: grid; gap: 4px; font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  select, input { font: inherit; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); min-width: 120px; }
+  button { font: inherit; font-weight: 600; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); cursor: pointer; }
+  button.ghost { background: transparent; color: var(--accent); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; background: transparent; color: var(--muted); font-weight: 500; padding: 7px 10px; }
+  .seg button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  main { padding: 0 24px 32px; display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); min-width: 0; }
+  .card h2 { font-size: 13px; margin: 0 0 2px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
+  .card .hint { font-size: 12px; color: var(--muted); margin: 0 0 12px; }
+  .kpi { grid-column: span 12; display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; padding: 0; background: none; border: 0; box-shadow: none; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; box-shadow: var(--shadow); }
+  .tile .v { font-size: 26px; font-weight: 700; letter-spacing: -.02em; margin-top: 2px; }
+  .tile .k { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .tile .s { font-size: 12px; color: var(--muted); }
+  .span-7 { grid-column: span 7; } .span-5 { grid-column: span 5; } .span-6 { grid-column: span 6; } .span-12 { grid-column: span 12; }
+  #map { height: 420px; border-radius: 10px; background: var(--bg); }
+  .risk-row { display: grid; grid-template-columns: 22px 1fr 54px; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line); cursor: default; }
+  .risk-row:last-child { border-bottom: 0; }
+  .bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; margin-top: 4px; }
+  .bar > span { display: block; height: 100%; border-radius: 4px; }
+  .lvl { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; color: #fff; text-align: center; }
+  .rank { color: var(--muted); font-size: 12px; }
+  .chart { position: relative; height: 280px; }
+  .brief p { margin: 0 0 10px; }
+  .warn { font-size: 12px; color: var(--warn); margin: 6px 0 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { font-size: 11.5px; padding: 3px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+  .scroll { overflow-x: auto; }
+  footer { padding: 0 24px 24px; color: var(--muted); font-size: 12px; }
+  footer a { color: var(--accent); }
+  @media (max-width: 1000px) {
+    .span-7, .span-5, .span-6 { grid-column: span 12; }
+    .kpi { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 560px) { header, main, footer { padding-left: 16px; padding-right: 16px; } .filters { margin: 8px 16px 16px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo">TW</div>
+    <div>
+      <h1>TickWatch UK</h1>
+      <div class="sub">Live console for the tick-sightings backend · every panel is a call to the REST API</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <span class="pill" id="status"><span class="dot"></span><span>checking…</span></span>
+    <span class="pill mono" id="version">data v–</span>
+    <a class="pill" href="/docs" style="color:inherit;text-decoration:none">API docs ↗</a>
+  </div>
+</header>
+
+<section class="filters">
+  <label>City<select id="f-city"><option value="">All cities</option></select></label>
+  <label>Species<select id="f-species"><option value="">All species</option></select></label>
+  <label>From<input id="f-start" placeholder="e.g. 2018" size="8"></label>
+  <label>To<input id="f-end" placeholder="e.g. 2024-06" size="8"></label>
+  <label>Interval
+    <div class="seg" id="f-interval">
+      <button data-v="week">Week</button><button data-v="month" class="on">Month</button>
+      <button data-v="quarter">Quarter</button><button data-v="year">Year</button>
+    </div>
+  </label>
+  <button id="apply">Apply filters</button>
+  <button class="ghost" id="reset">Reset</button>
+  <span class="sub" id="filter-error" style="color:var(--bad)"></span>
+</section>
+
+<main>
+  <section class="kpi">
+    <div class="tile"><div class="k">Sightings</div><div class="v" id="k-total">–</div><div class="s" id="k-span"></div></div>
+    <div class="tile"><div class="k">Top city</div><div class="v" id="k-city">–</div><div class="s" id="k-city-s"></div></div>
+    <div class="tile"><div class="k">Top species</div><div class="v" id="k-species" style="font-size:20px">–</div><div class="s" id="k-species-s"></div></div>
+    <div class="tile"><div class="k">Long-term trend</div><div class="v" id="k-trend">–</div><div class="s" id="k-trend-s"></div></div>
+    <div class="tile"><div class="k">Data quality</div><div class="v" id="k-quality">–</div><div class="s" id="k-quality-s"></div></div>
+  </section>
+
+  <section class="card span-7">
+    <h2>Where ticks are reported</h2>
+    <p class="hint">Circle size = sightings; colour = activity score for <span id="risk-month"></span> (<span class="mono">/insights/risk</span>)</p>
+    <div id="map"></div>
+  </section>
+
+  <section class="card span-5">
+    <h2>Activity score by city</h2>
+    <p class="hint">Explainable 0–100 score · hover a row for the reasoning</p>
+    <div id="risk-list"></div>
+    <div id="risk-warn"></div>
+  </section>
+
+  <section class="card span-7">
+    <h2>Trend over time</h2>
+    <p class="hint" id="trend-hint">Zero-filled counts with a 3-period moving average (<span class="mono">/stats/trends</span>)</p>
+    <div class="chart"><canvas id="c-trend"></canvas></div>
+  </section>
+
+  <section class="card span-5">
+    <h2>Sightings per region</h2>
+    <p class="hint" id="region-hint">(<span class="mono">/stats/by-location?group_by=region</span>)</p>
+    <div class="chart"><canvas id="c-region"></canvas></div>
+  </section>
+
+  <section class="card span-6">
+    <h2>Seasonality</h2>
+    <p class="hint" id="season-hint">Month-of-year index vs the general UK activity prior</p>
+    <div class="chart"><canvas id="c-season"></canvas></div>
+  </section>
+
+  <section class="card span-6">
+    <h2>Forecast (next 12 months)</h2>
+    <p class="hint" id="fc-hint">Poisson GLM with 80% / 95% prediction intervals</p>
+    <div class="chart"><canvas id="c-forecast"></canvas></div>
+  </section>
+
+  <section class="card span-7 brief">
+    <h2>Briefing</h2>
+    <p class="hint">Generated from the computed statistics (<span class="mono">/insights/briefing</span>)</p>
+    <div id="brief"></div>
+    <div class="chips" id="findings"></div>
+  </section>
+
+  <section class="card span-5">
+    <h2>Ingestion &amp; data quality</h2>
+    <p class="hint">Audit log of sync runs · <span class="mono">/data-quality</span></p>
+    <div class="scroll"><table id="runs"></table></div>
+    <div id="dq" class="chips"></div>
+    <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button id="sync">Sync from upstream now</button>
+      <span class="sub" id="sync-msg"></span>
+    </div>
+  </section>
+</main>
+<footer>
+  Data: Elanco Tick Sightings API (educational dataset). Map © OpenStreetMap contributors.
+  · <a href="/docs">Swagger</a> · <a href="/redoc">ReDoc</a> · <a href="/health/ready">/health/ready</a>
+</footer>
+
+<!-- vendored (MIT / BSD-2) so the console works offline; only map tiles need the internet -->
+<script src="/static/vendor/leaflet/leaflet.js"></script>
+<script src="/static/vendor/chartjs/chart.umd.min.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const LEVEL_COLOR = { "Low": "--low", "Moderate": "--moderate", "High": "--high", "Very high": "--vhigh" };
+const state = { interval: "month", charts: {}, map: null, layer: null };
+
+async function api(path, params = {}) {
+  const url = new URL(path, location.origin);
+  Object.entries(params).forEach(([k, v]) => v !== "" && v != null && url.searchParams.set(k, v));
+  const res = await fetch(url);
+  const body = res.status === 204 ? null : await res.json();
+  if (!res.ok) throw Object.assign(new Error(body?.error?.message || res.statusText), { body });
+  return body;
+}
+
+function filters() {
+  return { city: $("f-city").value, species: $("f-species").value, start: $("f-start").value.trim(), end: $("f-end").value.trim() };
+}
+
+function chart(id, config) {
+  state.charts[id]?.destroy();
+  Chart.defaults.color = css("--muted");
+  Chart.defaults.borderColor = css("--line");
+  Chart.defaults.font.family = "Inter, system-ui, sans-serif";
+  state.charts[id] = new Chart($(id), { ...config, options: { responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { boxWidth: 12 } } }, ...config.options } });
+}
+
+async function loadStatus() {
+  try {
+    const r = await fetch("/health/ready").then((x) => x.json());
+    $("status").innerHTML = `<span class="dot ${r.status}"></span><span>${r.status}${r.degraded_reasons.length ? " · " + r.degraded_reasons[0] : ""}</span>`;
+    $("version").textContent = `data v${r.data.data_version} · ${r.data.active_sightings} records · circuit ${r.upstream.circuit_breaker.state}`;
+  } catch { $("status").innerHTML = `<span class="dot unavailable"></span><span>API unreachable</span>`; }
+}
+
+async function loadMeta() {
+  const [locs, sp] = await Promise.all([api("/api/v1/meta/locations"), api("/api/v1/meta/species")]);
+  locs.data.forEach((l) => $("f-city").add(new Option(`${l.city} (${l.sightings})`, l.city)));
+  sp.data.filter((s) => s.in_dataset).forEach((s) => $("f-species").add(new Option(s.common_name, s.common_name)));
+}
+
+function initMap() {
+  state.map = L.map("map", { scrollWheelZoom: false, zoomSnap: 0.25 }).setView([54.2, -2.6], 5.6);
+  // Offline basemap: a Natural Earth outline sits *under* the tile layer, so the map
+  // still reads as the UK when OpenStreetMap tiles are unreachable.
+  state.map.createPane("land").style.zIndex = 150;
+  fetch("/static/vendor/uk-outline.geojson").then((r) => r.json()).then((g) =>
+    L.geoJSON(g, { pane: "land", interactive: false,
+      style: { color: css("--muted"), weight: 1, fillColor: css("--accent-soft"), fillOpacity: 1 } }).addTo(state.map));
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 12,
+    attribution: "&copy; OpenStreetMap contributors · outline: Natural Earth" }).addTo(state.map);
+}
+
+async function loadAll() {
+  $("filter-error").textContent = "";
+  const f = filters();
+  try {
+    await api("/api/v1/sightings", { ...f, page_size: 1 }); // validates the filters once, surfaces 422s
+  } catch (e) { $("filter-error").textContent = e.message + (e.body?.error?.details?.suggestions?.length ? ` Did you mean ${e.body.error.details.suggestions.join(", ")}?` : ""); return; }
+
+  const [summary, cities, regions, trends, season, risk, brief, overview] = await Promise.all([
+    api("/api/v1/stats/summary", f),
+    api("/api/v1/stats/by-location", { ...f, group_by: "city" }),
+    api("/api/v1/stats/by-location", { ...f, group_by: "region" }),
+    api("/api/v1/stats/trends", { ...f, interval: state.interval }),
+    api("/api/v1/stats/seasonality", f),
+    api("/api/v1/insights/risk", { ...f, month: new Date().toISOString().slice(0, 7) }).catch(() => null),
+    api("/api/v1/insights/briefing", f).catch(() => null),
+    api("/api/v1/insights/overview", f).catch(() => null),
+  ]);
+  renderKpis(summary, trends);
+  renderMap(cities, risk);
+  renderRisk(risk);
+  renderTrend(trends);
+  renderRegions(regions);
+  renderSeason(season, overview);
+  renderBrief(brief);
+  loadForecast(f);
+  loadQuality();
+}
+
+function renderKpis(s, t) {
+  $("k-total").textContent = s.total_sightings.toLocaleString();
+  $("k-span").textContent = s.first_sighting ? `${s.first_sighting.slice(0, 7)} → ${s.latest_sighting.slice(0, 7)}` : "no data";
+  $("k-city").textContent = s.top_city?.key ?? "–";
+  $("k-city-s").textContent = s.top_city ? `${s.top_city.count} sightings · ${(s.top_city.share * 100).toFixed(1)}%` : "";
+  $("k-species").textContent = s.top_species?.key ?? "–";
+  $("k-species-s").textContent = s.top_species ? `${(s.top_species.share * 100).toFixed(1)}% of sightings` : "";
+  const tr = t.summary?.trend;
+  if (tr && tr.status === "ok") {
+    $("k-trend").textContent = `${tr.change_per_year_pct > 0 ? "+" : ""}${tr.change_per_year_pct}%/yr`;
+    $("k-trend-s").textContent = tr.significant ? `${tr.direction} (p=${tr.p_value})` : `not significant (p=${tr.p_value})`;
+  } else { $("k-trend").textContent = "–"; $("k-trend-s").textContent = "not enough data"; }
+}
+
+function renderMap(cities, risk) {
+  if (state.layer) state.layer.remove();
+  const byCity = Object.fromEntries((risk?.cities || []).map((r) => [r.city, r]));
+  $("risk-month").textContent = risk?.target_month ?? "–";
+  const max = Math.max(1, ...cities.data.map((d) => d.count));
+  state.layer = L.layerGroup(cities.data.filter((d) => d.lat).map((d) => {
+    const r = byCity[d.key];
+    const color = css(LEVEL_COLOR[r?.level] || "--accent");
+    return L.circleMarker([d.lat, d.lon], { radius: 5 + 15 * Math.sqrt(d.count / max), color, fillColor: color, fillOpacity: .45, weight: 2 })
+      .bindPopup(`<b>${d.key}</b> · ${d.region}<br>${d.count} sightings (${(d.share * 100).toFixed(1)}%)<br>` +
+        (r ? `Activity score <b>${r.score}</b> (${r.level})` : ""));
+  })).addTo(state.map);
+  const pts = cities.data.filter((d) => d.lat).map((d) => [d.lat, d.lon]);
+  if (pts.length) state.map.fitBounds(pts, { padding: [24, 24], maxZoom: 9 });
+}
+
+function renderRisk(risk) {
+  if (!risk) { $("risk-list").innerHTML = "<p class='sub'>Not enough data for these filters.</p>"; return; }
+  $("risk-list").innerHTML = risk.cities.slice(0, 8).map((c) => {
+    const color = css(LEVEL_COLOR[c.level]);
+    return `<div class="risk-row" title="${c.explanation.replaceAll('"', "'")}">
+      <span class="rank">${c.rank}</span>
+      <div><b>${c.city}</b> <span class="sub">· ${c.region ?? ""}</span>
+        <div class="bar"><span style="width:${c.score}%;background:${color}"></span></div></div>
+      <span class="lvl" style="background:${color}">${c.score.toFixed(0)}</span></div>`;
+  }).join("");
+  $("risk-warn").innerHTML = risk.warnings.map((w) => `<p class="warn">⚠ ${w}</p>`).join("");
+}
+
+function renderTrend(t) {
+  const s = t.series[0];
+  if (!s) return;
+  const tr = t.summary.trend;
+  $("trend-hint").textContent = `${t.periods} ${t.interval}s · peak ${t.summary.peak?.label} (${t.summary.peak?.count}) · ` +
+    (tr.status === "ok" ? `Poisson trend ${tr.change_per_year_pct > 0 ? "+" : ""}${tr.change_per_year_pct}%/yr, p=${tr.p_value}` : "trend: insufficient data");
+  chart("c-trend", { type: "line", data: { labels: s.points.map((p) => p.label), datasets: [
+    { label: "Sightings", data: s.points.map((p) => p.count), borderColor: css("--line"), backgroundColor: css("--accent-soft"), fill: true, pointRadius: 0, borderWidth: 1, stepped: t.interval === "week" },
+    { label: `Moving average (${t.moving_average_window})`, data: s.points.map((p) => p.moving_avg), borderColor: css("--accent"), pointRadius: 0, borderWidth: 2, tension: .3 },
+  ] }, options: { scales: { x: { ticks: { maxTicksLimit: 10 } }, y: { beginAtZero: true } }, interaction: { mode: "index", intersect: false } } });
+}
+
+function renderRegions(r) {
+  const test = r.difference_test;
+  $("region-hint").textContent = `χ² vs number of cities: p=${test.p_value} → ${test.significant ? "regions differ beyond city counts" : "differences within chance"}`;
+  chart("c-region", { type: "bar", data: { labels: r.data.map((d) => d.key), datasets: [
+    { label: "Sightings", data: r.data.map((d) => d.count), backgroundColor: css("--accent"), borderRadius: 6 },
+  ] }, options: { indexAxis: "y", plugins: { legend: { display: false } } } });
+}
+
+const PRIOR = [0.35, 0.45, 0.85, 1.45, 1.75, 1.6, 1.25, 1.1, 1.15, 0.95, 0.6, 0.4];
+function renderSeason(s, overview) {
+  const mean = PRIOR.reduce((a, b) => a + b) / 12;
+  const test = s.seasonality_test;
+  $("season-hint").textContent = `χ² uniformity p=${test.p_value}: ${test.significant ? "seasonal pattern detected" : "no significant seasonality in this data"}`;
+  chart("c-season", { data: { labels: s.by_month.map((m) => m.name), datasets: [
+    { type: "bar", label: "Observed index (1 = average month)", data: s.by_month.map((m) => m.index), backgroundColor: css("--accent"), borderRadius: 6, order: 2 },
+    { type: "line", label: "General UK activity prior", data: PRIOR.map((v) => +(v / mean).toFixed(2)), borderColor: css("--high"), borderDash: [5, 4], pointRadius: 2, borderWidth: 2, order: 0 },
+  ] }, options: { scales: { y: { beginAtZero: true } } } });
+}
+
+async function loadForecast(f) {
+  try {
+    const fc = await api("/api/v1/insights/forecast", { ...f, horizon: 12 });
+    const hist = fc.recent_history.slice(-18);
+    const labels = [...hist.map((h) => h.label), ...fc.points.map((p) => p.label)];
+    const pad = (arr, before) => [...Array(before).fill(null), ...arr];
+    const bt = fc.backtest;
+    $("fc-hint").textContent = `${fc.scope} · terms: ${fc.model.selected_terms.join(", ") || "intercept only"}` +
+      (bt.status === "ok" ? ` · backtest MAE ${bt.mae_model} vs naive ${bt.mae_seasonal_naive}, PI80 coverage ${bt.pi80_coverage_pct}%` : "");
+    const band = (alpha) => css("--accent") + alpha;
+    chart("c-forecast", { type: "line", data: { labels, datasets: [
+      { label: "Observed", data: hist.map((h) => h.count), borderColor: css("--muted"), pointRadius: 2, borderWidth: 1.5, order: 0 },
+      { label: "95% interval", data: pad(fc.points.map((p) => p.pi95[1]), hist.length), borderColor: "transparent", backgroundColor: band("22"), fill: "+3", pointRadius: 0, order: 3 },
+      { label: "80% interval", data: pad(fc.points.map((p) => p.pi80[1]), hist.length), borderColor: "transparent", backgroundColor: band("44"), fill: "+1", pointRadius: 0, order: 2 },
+      { label: "80% lower", data: pad(fc.points.map((p) => p.pi80[0]), hist.length), borderColor: "transparent", pointRadius: 0, order: 2 },
+      { label: "95% lower", data: pad(fc.points.map((p) => p.pi95[0]), hist.length), borderColor: "transparent", pointRadius: 0, order: 3 },
+      { label: "Expected", data: pad(fc.points.map((p) => p.expected), hist.length), borderColor: css("--accent"), borderWidth: 2.5, pointRadius: 0, order: 0 },
+    ] }, options: { plugins: { legend: { labels: { filter: (i) => ["Observed", "Expected", "80% interval", "95% interval"].includes(i.text) } } },
+      scales: { y: { beginAtZero: true }, x: { ticks: { maxTicksLimit: 10 } } } } });
+  } catch (e) { $("fc-hint").textContent = e.message; }
+}
+
+function renderBrief(b) {
+  if (!b) { $("brief").innerHTML = "<p class='sub'>Not enough data for a briefing with these filters.</p>"; return; }
+  $("brief").innerHTML = b.paragraphs.map((p) => `<p>${p}</p>`).join("");
+  const k = b.key_numbers;
+  $("findings").innerHTML = [
+    `hotspots: ${k.hotspots.join(", ") || "none"}`,
+    `seasonality: ${k.seasonality_significant ? "yes" : "not detected"}`,
+    `trend: ${k.trend?.direction ?? "–"}`,
+  ].map((t) => `<span class="chip">${t}</span>`).join("");
+}
+
+async function loadQuality() {
+  const [dq, runs] = await Promise.all([api("/api/v1/data-quality", { samples: 0 }), api("/api/v1/ingestion/runs", { limit: 6 })]);
+  $("k-quality").textContent = dq.quality_score != null ? `${dq.quality_score}%` : "–";
+  $("k-quality-s").textContent = `${dq.records.rejected_quarantined} quarantined · ${dq.records.probable_duplicates} duplicates`;
+  $("runs").innerHTML = "<tr><th>#</th><th>Trigger</th><th>Source</th><th>Status</th><th>New/Upd/Same</th><th>Rej</th><th>ms</th></tr>" +
+    runs.data.map((r) => `<tr title="${(r.warnings || []).join(' | ').replaceAll('"', "'")}${r.error ? " | " + r.error.replaceAll('"', "'") : ""}"><td>${r.id}</td><td>${r.trigger}</td><td>${r.source ?? "–"}</td>
+      <td><span class="dot ${r.status === "success" ? "ok" : r.status === "partial" ? "degraded" : "unavailable"}" style="display:inline-block"></span> ${r.status}</td>
+      <td class="mono">${r.inserted}/${r.updated}/${r.unchanged}</td><td>${r.rejected}</td><td>${r.duration_ms ?? "–"}</td></tr>`).join("");
+  $("dq").innerHTML = [
+    ...Object.entries(dq.repairs).map(([k, v]) => `${k.replaceAll("_", " ")}: ${v.count}`),
+    ...dq.rejections.map((r) => `rejected · ${r.reason.replaceAll("_", " ")}: ${r.count}`),
+  ].map((t) => `<span class="chip">${t}</span>`).join("") || "<span class='chip'>no repairs needed - upstream data is clean</span>";
+}
+
+$("f-interval").addEventListener("click", (e) => {
+  if (!e.target.dataset.v) return;
+  state.interval = e.target.dataset.v;
+  [...$("f-interval").children].forEach((b) => b.classList.toggle("on", b === e.target));
+  api("/api/v1/stats/trends", { ...filters(), interval: state.interval }).then(renderTrend);
+});
+$("apply").addEventListener("click", loadAll);
+$("reset").addEventListener("click", () => { ["f-city", "f-species", "f-start", "f-end"].forEach((id) => ($(id).value = "")); loadAll(); });
+$("sync").addEventListener("click", async () => {
+  $("sync").disabled = true; $("sync-msg").textContent = "syncing…";
+  try {
+    const res = await fetch("/api/v1/ingestion/sync", { method: "POST" });
+    const r = await res.json();
+    $("sync-msg").textContent = res.ok ? `${r.status} from ${r.source}: ${r.inserted} new, ${r.updated} updated, ${r.rejected} rejected` : r.error.message;
+    await Promise.all([loadStatus(), loadAll()]);
+  } finally { $("sync").disabled = false; }
+});
+
+initMap();
+loadStatus();
+loadMeta().then(loadAll);
+setInterval(loadStatus, 15000);
+</script>
+</body>
+</html>

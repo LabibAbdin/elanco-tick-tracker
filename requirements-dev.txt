@@ -1,0 +1,6 @@
+-r requirements.txt
+# dev tools pinned to the versions the suite was verified with (Python 3.11, 3.12, 3.13)
+pytest==9.2.0
+pytest-asyncio==1.4.1
+respx==0.23.1
+ruff==0.17.3

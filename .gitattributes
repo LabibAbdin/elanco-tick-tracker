@@ -1,0 +1,6 @@
+# Keep Unix line endings for shell scripts even when cloned on Windows
+# (CRLF would break `bash scripts/demo.sh` with "\r: command not found").
+* text=auto
+*.sh text eol=lf
+Makefile text eol=lf
+*.png binary
