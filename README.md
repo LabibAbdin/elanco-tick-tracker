@@ -27,8 +27,7 @@ queryable dataset, and serves search, reporting and statistical insights over a 
 11. [Project structure](#11-project-structure)
 12. [What I'd do with more time](#12-what-id-do-with-more-time)
 
-Deeper write-ups: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (decisions, trade-offs, failure modes) ·
-[`docs/VIDEO_SCRIPT.md`](docs/VIDEO_SCRIPT.md) (10-minute walkthrough plan).
+Deeper write-up: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (decisions, trade-offs, failure modes).
 
 ---
 
@@ -99,7 +98,7 @@ All configuration is via environment variables or a `.env` file — see [`.env.e
 | **Reporting** — sightings per region, weekly/monthly trends | Per city/region/nation (+GeoJSON), zero-filled trends by day/week/month/quarter/year with a proper trend test, seasonality, heatmaps, summary ([§6](#6-reporting-endpoints)) |
 | **AI/ML insights** (extension) | Poisson GLM diagnostics (trend, seasonality, hotspots), forecasts with prediction intervals **and a backtest**, FDR-controlled anomaly detection, an explainable 0–100 activity score, a plain-English briefing ([§7](#7-aiml-insights-extension)) |
 | **Error handling** — API failures and data inconsistencies | Timeouts, jittered retries, `Retry-After`, circuit breaker, per-city fallback, last-known-good data, one consistent error envelope, readiness probe ([§8](#8-error-handling--resilience)) |
-| Docs & thought process | This README, [ARCHITECTURE.md](docs/ARCHITECTURE.md), OpenAPI docs, video script |
+| Docs & thought process | This README, [ARCHITECTURE.md](docs/ARCHITECTURE.md), OpenAPI docs at `/docs` |
 
 ### What I found when I probed the upstream API
 
@@ -363,7 +362,7 @@ data/snapshot/            verified copy of the live dataset (cold start / outage
 tools/chaos_upstream.py   fault-injecting stand-in for the Elanco API
 scripts/                  demo.sh (curl tour), benchmark.py (200k-row scale test)
 tests/                    125 tests
-docs/                     ARCHITECTURE.md, VIDEO_SCRIPT.md, screenshots
+docs/                     ARCHITECTURE.md, screenshots
 ```
 
 ---

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A guided tour of the API for the walkthrough video.
+# A guided tour of the API with curl.
 #   ./scripts/demo.sh                    # against http://127.0.0.1:8000
 #   ./scripts/demo.sh http://127.0.0.1:8001
 # Press Enter between steps. Uses jq for pretty output when installed.

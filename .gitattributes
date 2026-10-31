@@ -4,3 +4,6 @@
 *.sh text eol=lf
 Makefile text eol=lf
 *.png binary
+
+# Third-party browser libraries: don't count them in GitHub's language statistics
+app/static/vendor/** linguist-vendored
